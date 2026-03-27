@@ -400,6 +400,14 @@
       <option value="">Any stock status</option>
       <option value="in_stock">NL/DE in stock only</option>
     </select>
+    <div style="display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 12px;font-size:12px;color:var(--text-dim)" title="Filter by SA price range">
+      <span>SA R</span>
+      <input type="number" id="arb-price-min" placeholder="Min" min="0" step="100"
+        style="width:70px;background:transparent;border:none;outline:none;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600">
+      <span>–</span>
+      <input type="number" id="arb-price-max" placeholder="Max" min="0" step="100"
+        style="width:70px;background:transparent;border:none;outline:none;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600">
+    </div>
     <span class="result-count" id="arb-count"></span>
   </div>
 
@@ -622,8 +630,7 @@ function renderAllTab() {
   fillDropdown('all-retailer', prods.map(p => p.retailer));
   function isSample(p) {
     const n = p.name.toLowerCase();
-    return /\b(sample|\dcl\b|miniature|mini\b|tasting kit)/.test(n) ||
-           p.retailer === 'Whiskysite' && /\b(3cl|6cl|10cl|sample)/.test(n);
+    return /(sample|miniature|tasting.?kit|\d\s?cl\b)/i.test(n);
   }
   function getFiltered() {
     const s    = document.getElementById('all-search').value.toLowerCase();
@@ -673,8 +680,7 @@ function renderOOSTab() {
   fillDropdown('oos-retailer', prods.map(p => p.retailer));
   function isSample(p) {
     const n = p.name.toLowerCase();
-    return /\b(sample|\dcl\b|miniature|mini\b|tasting kit)/.test(n) ||
-           p.retailer === 'Whiskysite' && /\b(3cl|6cl|10cl|sample)/.test(n);
+    return /(sample|miniature|tasting.?kit|\d\s?cl\b)/i.test(n);
   }
   function getFiltered() {
     const s  = document.getElementById('oos-search').value.toLowerCase();
@@ -702,7 +708,7 @@ function renderOOSTab() {
 function renderDemandTab() {
   function isSample(p) {
     const n = (p.name||'').toLowerCase();
-    return /\b(sample|\dcl\b|miniature|mini\b|tasting kit)/.test(n);
+    return /(sample|miniature|tasting.?kit|\d\s?cl\b)/i.test(n);
   }
   const items = (DATA.demand_ranking || []).filter(p => !isSample(p));
   document.getElementById('demand-count').textContent = `(${items.length} bottles)`;
@@ -874,14 +880,17 @@ function renderArbTab() {
   const maxAbsDiff = Math.max(...ARB_DATA.map(r => Math.abs(r.diff)), 1);
 
   function getFiltered() {
-    const s   = document.getElementById('arb-search').value.toLowerCase();
-    const reg = document.getElementById('arb-region').value;
-    const flg = document.getElementById('arb-flag').value;
-    const stk = document.getElementById('arb-stock-filter').value;
+    const s    = document.getElementById('arb-search').value.toLowerCase();
+    const reg  = document.getElementById('arb-region').value;
+    const flg  = document.getElementById('arb-flag').value;
+    const stk  = document.getElementById('arb-stock-filter').value;
+    const pMin = parseFloat(document.getElementById('arb-price-min').value) || 0;
+    const pMax = parseFloat(document.getElementById('arb-price-max').value) || Infinity;
     return ARB_DATA.filter(r =>
       (!s   || r.name.toLowerCase().includes(s) || r.sa_name.toLowerCase().includes(s)) &&
       (!reg || r.nl_retailer === reg) &&
       (!stk || r.nl_stock === stk) &&
+      (r.best_sa_price >= pMin && r.best_sa_price <= pMax) &&
       (flg === '' ||
        (flg === 'buy'  && r.diff >= threshold) ||
        (flg === 'skip' && r.diff <  threshold))
@@ -929,6 +938,8 @@ function renderArbTab() {
   const update = () => { document.getElementById('arb-count').textContent = refresh() + ' results'; };
   ['arb-search','arb-region','arb-flag','arb-stock-filter'].forEach(id =>
     document.getElementById(id).addEventListener(id.includes('search')?'input':'change', update));
+  ['arb-price-min','arb-price-max'].forEach(id =>
+    document.getElementById(id).addEventListener('input', update));
   update();
 }
 
