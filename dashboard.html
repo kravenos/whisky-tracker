@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whisky Tracker — SA &amp; NL/DE Market Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f13;
+    --surface: #16171d;
+    --surface2: #1e1f27;
+    --surface3: #252631;
+    --border: #2a2b35;
+    --border-subtle: #1e1f27;
+    --text: #e0ddd5;
+    --text-dim: #8a8780;
+    --text-muted: #555560;
+    --amber: #d4a24e;
+    --amber-bright: #e8b96a;
+    --amber-dim: rgba(212,162,78,0.13);
+    --red: #c0392b;
+    --red-dim: rgba(192,57,43,0.12);
+    --green: #27ae60;
+    --green-dim: rgba(39,174,96,0.12);
+    --blue: #5b9bd5;
+    --blue-dim: rgba(91,155,213,0.12);
+    --teal: #2ec4b6;
+    --teal-dim: rgba(46,196,182,0.12);
+    --purple: #9b59b6;
+    --purple-dim: rgba(155,89,182,0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+
+  /* HEADER */
+  .header {
+    padding: 28px 40px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 16px;
+    background: linear-gradient(180deg, rgba(212,162,78,0.04) 0%, transparent 100%);
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .header-icon { font-size: 26px; line-height: 1; }
+  .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: var(--amber); }
+  .header h1 span { color: var(--text-dim); font-weight: 400; }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .header-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+  .fx-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--amber);
+  }
+  .fx-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+  /* STATS */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+    gap: 1px; background: var(--border); margin: 20px 40px 0;
+    border-radius: 10px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+  .stat-card {
+    background: var(--surface); padding: 18px 22px;
+    display: flex; flex-direction: column; gap: 3px;
+    position: relative; overflow: hidden; transition: background 0.2s;
+  }
+  .stat-card:hover { background: var(--surface2); }
+  .stat-card::after {
+    content:''; position:absolute; bottom:0; left:0; right:0; height:2px;
+    background: transparent; transition: background 0.2s;
+  }
+  .stat-card:hover::after { background: var(--amber); }
+  .stat-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
+  .stat-card .value { font-size: 26px; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em; }
+  .stat-card .sublabel { font-size: 11px; color: var(--text-dim); }
+  .value.amber { color: var(--amber); }
+  .value.red { color: var(--red); }
+  .value.green { color: var(--green); }
+  .value.teal { color: var(--teal); }
+
+  /* TABS */
+  .tabs {
+    display: flex; margin: 22px 40px 0;
+    border-bottom: 1px solid var(--border); overflow-x: auto;
+  }
+  .tabs::-webkit-scrollbar { height: 0; }
+  .tab {
+    padding: 10px 18px; font-size: 13px; font-weight: 600;
+    color: var(--text-dim); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.2s;
+    white-space: nowrap; display: flex; align-items: center; gap: 7px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+  .tab-new {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    background: var(--teal); color: #0e0f13; border-radius: 3px; padding: 2px 5px;
+  }
+
+  /* PANELS */
+  .panel { display: none; margin: 0 40px; padding: 22px 0; }
+  .panel.active { display: block; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 16px rgba(0,0,0,0.2); }
+  .scrollable-table { max-height: 580px; overflow-y: auto; }
+  .scrollable-table::-webkit-scrollbar { width: 5px; }
+  .scrollable-table::-webkit-scrollbar-track { background: transparent; }
+  .scrollable-table::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; padding: 11px 14px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-dim); background: var(--surface2);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    cursor: pointer; user-select: none; font-weight: 700; z-index: 2; transition: color 0.15s;
+  }
+  thead th:hover { color: var(--amber); }
+  thead th.sorted-asc::after { content: ' ▲'; color: var(--amber); font-size: 9px; }
+  thead th.sorted-desc::after { content: ' ▼'; color: var(--amber); font-size: 9px; }
+  tbody td { padding: 9px 14px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.022); }
+
+  /* BADGES */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.02em; }
+  .badge.oos { background: var(--red-dim); color: var(--red); }
+  .badge.in-stock { background: var(--green-dim); color: var(--green); }
+  .badge.retailer { background: var(--amber-dim); color: var(--amber); margin: 1px 2px; }
+  .badge.nl { background: var(--blue-dim); color: var(--blue); }
+  .badge.de { background: var(--purple-dim); color: var(--purple); }
+  .badge.buy { background: var(--teal-dim); color: var(--teal); }
+  .badge.skip { background: var(--surface2); color: var(--text-muted); }
+
+  /* PRICES */
+  .price { font-family: 'JetBrains Mono', monospace; color: var(--amber); }
+  .price-eur { font-family: 'JetBrains Mono', monospace; color: var(--blue); }
+  .price-pos { font-family: 'JetBrains Mono', monospace; color: var(--teal); font-weight: 600; }
+  .price-neg { font-family: 'JetBrains Mono', monospace; color: var(--red); }
+
+  /* TOOLBAR */
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .search-input {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 14px; color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 13px; min-width: 230px; outline: none; transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--amber); }
+  .search-input::placeholder { color: var(--text-muted); }
+  select.filter-select {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 12px; color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 13px; outline: none; cursor: pointer; transition: border-color 0.2s;
+  }
+  select.filter-select:focus { border-color: var(--amber); }
+  .result-count { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-left: auto; }
+
+  /* ARB SETTINGS */
+  .arb-settings {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 20px; margin-bottom: 20px;
+    display: flex; flex-wrap: wrap; gap: 24px; align-items: center;
+  }
+  .arb-settings-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .arb-settings-label { font-size: 11px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+  .fx-input {
+    background: var(--surface2); border: 1px solid var(--amber); border-radius: 6px;
+    padding: 7px 12px; color: var(--amber); font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; width: 90px; outline: none; text-align: right;
+  }
+  .threshold-input {
+    background: var(--surface2); border: 1px solid var(--teal); border-radius: 6px;
+    padding: 7px 12px; color: var(--teal); font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; width: 105px; outline: none; text-align: right;
+  }
+  .fx-status { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+  .fx-status.live { color: var(--green); }
+  .fx-status.manual { color: var(--amber); }
+  .recalc-btn {
+    background: var(--amber-dim); border: 1px solid var(--amber); color: var(--amber);
+    border-radius: 6px; padding: 7px 16px; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 0.2s;
+  }
+  .recalc-btn:hover { background: rgba(212,162,78,0.22); }
+
+  /* ARB SUMMARY */
+  .arb-summary {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1px; background: var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 20px;
+  }
+  .arb-card { background: var(--surface2); padding: 16px 20px; display: flex; flex-direction: column; gap: 3px; }
+  .arb-card .alabel { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600; }
+  .arb-card .avalue { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+  .arb-card .asub { font-size: 11px; color: var(--text-dim); }
+
+  /* DIFF BAR */
+  .diff-bar-track { flex: 1; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; margin-top: 5px; max-width: 80px; }
+  .diff-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+  .diff-bar-fill.pos { background: var(--teal); }
+  .diff-bar-fill.neg { background: var(--red); }
+
+  /* SECTION TITLES */
+  .section-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  .section-title .count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); font-weight: 400; }
+  .section-desc { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.7; }
+
+  /* HIGHLIGHT CARDS */
+  .highlight-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 18px; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+    transition: border-color 0.2s, background 0.15s;
+  }
+  .highlight-card:hover { border-color: var(--amber); background: var(--surface2); }
+  .highlight-card .name { font-weight: 600; font-size: 13px; }
+  .highlight-card .retailers { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  /* CHART */
+  .chart-container { margin-bottom: 24px; }
+  .bar-row { display: flex; align-items: center; margin-bottom: 8px; gap: 12px; }
+  .bar-label { width: 180px; font-size: 12px; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+  .bar-track { flex: 1; height: 22px; background: var(--surface2); border-radius: 4px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  .bar-fill.oos { background: var(--red); opacity: 0.75; }
+  .bar-fill.in-stock { background: var(--green); opacity: 0.55; }
+  .bar-value { width: 64px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); flex-shrink: 0; }
+
+  /* MISC */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 13px; }
+  .empty-state .emoji { font-size: 32px; display: block; margin-bottom: 12px; }
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+  .loading-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim);
+  }
+  .spinner { width: 10px; height: 10px; border: 2px solid var(--border); border-top-color: var(--amber); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 768px) {
+    .header, .tabs, .panel, .stats-row { margin-left: 16px; margin-right: 16px; }
+    .header { padding: 16px; }
+    .bar-label { width: 90px; font-size: 11px; }
+    .arb-settings { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-icon">🥃</div>
+    <div>
+      <h1>Whisky Tracker <span>— SA &amp; NL/DE Markets</span></h1>
+      <div class="header-meta" id="header-meta">
+        <span class="loading-pill"><span class="spinner"></span>&nbsp;Loading data...</span>
+      </div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="fx-pill">
+      <span class="fx-dot"></span>
+      <span id="fx-header-rate">EUR/ZAR loading…</span>
+    </div>
+    <div class="header-meta" id="fx-header-time"></div>
+  </div>
+</div>
+
+<div class="stats-row" id="stats-row"></div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="all">All Stock</div>
+  <div class="tab" data-tab="oos">Out of Stock</div>
+  <div class="tab" data-tab="demand">Demand Ranking</div>
+  <div class="tab" data-tab="cross">Cross-Retailer</div>
+  <div class="tab" data-tab="overview">Retailer Overview</div>
+  <div class="tab" data-tab="arb">Arbitrage <span class="tab-new">NL/DE</span></div>
+  <div class="tab" data-tab="changes">Changes <span id="changes-badge" class="tab-new" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);padding:1px 6px;border-radius:10px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:500"></span></div>
+</div>
+
+<!-- ALL STOCK -->
+<div class="panel active" id="panel-all">
+  <div class="toolbar">
+    <input class="search-input" id="all-search" placeholder="Search bottles…" type="text">
+    <select class="filter-select" id="all-retailer"><option value="">All retailers</option></select>
+    <select class="filter-select" id="all-country">
+      <option value="">All regions</option>
+      <option value="ZA">🇿🇦 South Africa</option>
+      <option value="NL">🇳🇱 Netherlands</option>
+      <option value="DE">🇩🇪 Germany</option>
+    </select>
+    <select class="filter-select" id="all-stock">
+      <option value="">All status</option>
+      <option value="in_stock">In Stock</option>
+      <option value="out_of_stock">Out of Stock</option>
+    </select>
+    <span class="result-count" id="all-count"></span>
+  </div>
+  <div class="table-wrap"><div class="scrollable-table">
+    <table id="all-table"><thead><tr>
+      <th data-col="name">Bottle</th>
+      <th data-col="retailer">Retailer</th>
+      <th data-col="country">Region</th>
+      <th data-col="stock">Status</th>
+      <th data-col="price_zar">Price ZAR</th>
+      <th data-col="price_eur">Price EUR</th>
+    </tr></thead><tbody></tbody></table>
+  </div></div>
+</div>
+
+<!-- OOS -->
+<div class="panel" id="panel-oos">
+  <div class="toolbar">
+    <input class="search-input" id="oos-search" placeholder="Search bottles…" type="text">
+    <select class="filter-select" id="oos-retailer"><option value="">All retailers</option></select>
+    <span class="result-count" id="oos-count"></span>
+  </div>
+  <div class="table-wrap"><div class="scrollable-table">
+    <table id="oos-table"><thead><tr>
+      <th data-col="name">Bottle</th>
+      <th data-col="retailer">Retailer</th>
+      <th data-col="price">Price (ZAR)</th>
+    </tr></thead><tbody></tbody></table>
+  </div></div>
+</div>
+
+<!-- DEMAND -->
+<div class="panel" id="panel-demand">
+  <div class="section-title">Most Frequently Out-of-Stock Bottles <span class="count" id="demand-count"></span></div>
+  <p class="section-desc">Ranked by number of scrape runs each bottle was found out of stock. Higher = stronger demand signal.</p>
+  <div class="table-wrap"><div class="scrollable-table">
+    <table id="demand-table"><thead><tr>
+      <th data-col="rank">#</th>
+      <th data-col="name">Bottle</th>
+      <th data-col="retailer">Retailer</th>
+      <th data-col="times_oos">Times OOS</th>
+      <th data-col="price">Last Price</th>
+    </tr></thead><tbody></tbody></table>
+  </div></div>
+</div>
+
+<!-- CROSS-RETAILER -->
+<div class="panel" id="panel-cross">
+  <div class="section-title">Out of Stock at Multiple Retailers <span class="count" id="cross-count"></span></div>
+  <p class="section-desc">Bottles out of stock at 2+ SA retailers simultaneously — strongest demand signal and highest arbitrage priority.</p>
+  <div id="cross-list"></div>
+</div>
+
+<!-- RETAILER OVERVIEW -->
+<div class="panel" id="panel-overview">
+  <div class="section-title">Stock Levels by Retailer</div>
+  <div class="chart-container" id="retailer-chart"></div>
+</div>
+
+<!-- ARBITRAGE -->
+<div class="panel" id="panel-arb">
+
+  <div class="arb-settings">
+    <div class="arb-settings-group">
+      <span class="arb-settings-label">EUR / ZAR Rate</span>
+      <input class="fx-input" id="arb-fx-rate" min="1" placeholder="loading…" step="0.01" type="number">
+      <span class="fx-status" id="arb-fx-status">fetching live rate…</span>
+    </div>
+    <div class="arb-settings-group">
+      <span class="arb-settings-label">BUY Threshold</span>
+      <input class="threshold-input" id="arb-threshold" min="0" step="50" type="number" value="500">
+      <span style="font-size:12px;color:var(--text-dim)">min ZAR saving → <span style="color:var(--teal)">BUY</span></span>
+    </div>
+    <div style="margin-left:auto">
+      <button class="recalc-btn" onclick="refreshArb()">↻ Recalculate</button>
+    </div>
+  </div>
+
+  <div class="arb-summary" id="arb-summary"></div>
+
+  <div class="toolbar">
+    <input class="search-input" id="arb-search" placeholder="Search bottles…" type="text">
+    <select class="filter-select" id="arb-region"><option value="">All NL/DE retailers</option></select>
+    <select class="filter-select" id="arb-flag">
+      <option value="">All opportunities</option>
+      <option value="buy">✅ BUY only</option>
+      <option value="skip">No saving only</option>
+    </select>
+    <select class="filter-select" id="arb-stock-filter">
+      <option value="">Any stock status</option>
+      <option value="in_stock">NL/DE in stock only</option>
+    </select>
+    <span class="result-count" id="arb-count"></span>
+  </div>
+
+  <div class="table-wrap"><div class="scrollable-table">
+    <table id="arb-table"><thead><tr>
+      <th data-col="name">Bottle</th>
+      <th data-col="nl_retailer">NL/DE Source</th>
+      <th data-col="nl_stock">NL/DE Stock</th>
+      <th data-col="price_eur">EUR Price</th>
+      <th data-col="price_eur_zar">EUR→ZAR</th>
+      <th data-col="best_sa_price">Best SA Price</th>
+      <th data-col="diff">Saving (ZAR)</th>
+      <th data-col="diff_pct">Saving %</th>
+      <th data-col="flag">Signal</th>
+    </tr></thead><tbody></tbody></table>
+  </div></div>
+
+  <div class="divider"></div>
+  <p class="section-desc" style="font-size:11px;margin-bottom:0">
+    💡 <strong>Matching:</strong> Names normalised (lowercased, punctuation stripped, age tokens aligned) and matched at ≥70% token overlap.
+    EUR prices converted at the rate above. <strong>Saving</strong> = best SA price minus EUR→ZAR. Positive = cheaper to buy in NL/DE.
+    Match confidence shown below each signal badge.
+  </p>
+</div>
+
+<div class="panel" id="panel-changes">
+  <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <div style="display:flex;gap:10px">
+      <div style="background:var(--green-dim);border:1px solid var(--green);border-radius:8px;padding:10px 18px;text-align:center">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim)">Restocked</div>
+        <div id="changes-restocked-count" style="font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--green)">—</div>
+      </div>
+      <div style="background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:10px 18px;text-align:center">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim)">Sold Out</div>
+        <div id="changes-soldout-count" style="font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--red)">—</div>
+      </div>
+    </div>
+    <div id="changes-run-label" style="font-size:12px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;margin-left:4px"></div>
+  </div>
+  <div class="table-wrap"><div class="scrollable-table">
+    <table id="changes-table"><thead><tr>
+      <th>Change</th>
+      <th>Bottle</th>
+      <th>Retailer</th>
+      <th>Price</th>
+    </tr></thead><tbody></tbody></table>
+  </div></div>
+</div>
+
+<script>
+/* ── GLOBALS ── */
+let DATA = null;
+let FX_RATE = null;
+let ARB_DATA = [];
+
+/* ── INIT ── */
+async function init() {
+  // Render as soon as data loads — don't block on the FX rate API call
+  loadFxRate();  // fire and forget
+  await loadData();
+}
+
+async function loadData() {
+  try {
+    const r = await fetch('dashboard_data.json');
+    DATA = await r.json();
+    render();  // render immediately; arb tab updates when FX rate arrives
+  } catch(e) {
+    document.getElementById('header-meta').innerHTML =
+      '<span style="color:var(--red)">Error: Could not load dashboard_data.json — run export_dashboard_data.py first</span>';
+  }
+}
+
+async function loadFxRate() {
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/EUR');
+    const d = await r.json();
+    if (d && d.rates && d.rates.ZAR) {
+      FX_RATE = d.rates.ZAR;
+      const ts = new Date(d.time_last_update_utc).toLocaleString('en-ZA', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+      document.getElementById('fx-header-rate').textContent = `1 EUR = ${FX_RATE.toFixed(2)} ZAR`;
+      document.getElementById('fx-header-time').textContent = `Updated ${ts}`;
+      document.getElementById('arb-fx-rate').value = FX_RATE.toFixed(2);
+      document.getElementById('arb-fx-status').textContent = `Live (${ts})`;
+      document.getElementById('arb-fx-status').className = 'fx-status live';
+    }
+  } catch(e) {
+    document.getElementById('fx-header-rate').textContent = 'EUR/ZAR — enter manually';
+    document.getElementById('arb-fx-status').textContent = 'Live fetch failed — enter rate manually';
+    document.getElementById('arb-fx-status').className = 'fx-status manual';
+  }
+  // Only refresh the arb tab (which depends on FX rate), not the whole dashboard
+  if (DATA) {
+    buildArbData();
+    renderArbTab();
+  }
+}
+
+/* ── FORMAT ── */
+function fmtZAR(p) {
+  if (p == null || p === '' || isNaN(p)) return '—';
+  return 'R\u202f' + Number(p).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtEUR(p) {
+  if (p == null || p === '' || isNaN(p)) return '—';
+  return '€\u202f' + Number(p).toLocaleString('en-NL', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtPct(p) {
+  if (p == null || isNaN(p)) return '—';
+  return (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
+}
+
+/* ── RENDER ALL ── */
+function render() {
+  if (!DATA) return;
+  const total = DATA.products.length;
+  const oos   = DATA.products.filter(p => p.stock === 'out_of_stock').length;
+  const rets  = DATA.retailer_summary.length;
+  const nlde  = DATA.products.filter(p => p.country && p.country !== 'ZA').length;
+
+  document.getElementById('header-meta').textContent =
+    `Last scrape: ${DATA.latest_run} · ${(DATA.all_runs||[]).length} run(s)`;
+
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card">
+      <span class="label">Total Products</span>
+      <span class="value">${total.toLocaleString()}</span>
+      <span class="sublabel">across all markets</span>
+    </div>
+    <div class="stat-card">
+      <span class="label">Out of Stock</span>
+      <span class="value red">${oos.toLocaleString()}</span>
+      <span class="sublabel">${((oos/total)*100).toFixed(0)}% of catalogue</span>
+    </div>
+    <div class="stat-card">
+      <span class="label">In Stock</span>
+      <span class="value green">${(total-oos).toLocaleString()}</span>
+      <span class="sublabel">available now</span>
+    </div>
+    <div class="stat-card">
+      <span class="label">Retailers</span>
+      <span class="value amber">${rets}</span>
+      <span class="sublabel">SA + NL/DE</span>
+    </div>
+    <div class="stat-card">
+      <span class="label">NL/DE Listings</span>
+      <span class="value teal">${nlde.toLocaleString()}</span>
+      <span class="sublabel">imported prices</span>
+    </div>
+    <div class="stat-card">
+      <span class="label">Cross-Retailer OOS</span>
+      <span class="value red">${(DATA.cross_retailer_oos||[]).length}</span>
+      <span class="sublabel">high demand signals</span>
+    </div>`;
+
+  renderAllTab();
+  renderOOSTab();
+  renderDemandTab();
+  renderCrossTab();
+  renderOverviewTab();
+  buildArbData();
+  renderArbTab();
+  renderChangesTab();
+}
+
+/* ── TABLE ENGINE ── */
+const NUM_COLS = new Set(['price','price_zar','price_eur','price_eur_zar','best_sa_price','diff','diff_pct','times_oos']);
+
+function setupTable(tableId, getFiltered, renderRow, defCol, defDir) {
+  let sortCol = defCol, sortDir = defDir || 'asc';
+  function refresh() {
+    let rows = getFiltered();
+    rows.sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      if (NUM_COLS.has(sortCol)) { va = va || 0; vb = vb || 0; }
+      else { va = (va||'').toString().toLowerCase(); vb = (vb||'').toString().toLowerCase(); }
+      return va < vb ? (sortDir==='asc'?-1:1) : va > vb ? (sortDir==='asc'?1:-1) : 0;
+    });
+    document.querySelector(`#${tableId} tbody`).innerHTML = rows.map(renderRow).join('');
+    document.querySelectorAll(`#${tableId} thead th`).forEach(th => {
+      th.classList.remove('sorted-asc','sorted-desc');
+      if (th.dataset.col === sortCol) th.classList.add(sortDir==='asc'?'sorted-asc':'sorted-desc');
+    });
+    return rows.length;
+  }
+  document.querySelectorAll(`#${tableId} thead th`).forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col; if (!col) return;
+      if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortCol = col; sortDir = NUM_COLS.has(col) ? 'desc' : 'asc'; }
+      refresh();
+    });
+  });
+  return refresh;
+}
+
+function fillDropdown(id, items) {
+  const sel = document.getElementById(id);
+  while (sel.options.length > 1) sel.remove(1);
+  [...new Set(items)].sort().forEach(v => {
+    const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
+  });
+}
+
+/* ── TAB: ALL ── */
+function renderAllTab() {
+  const prods = DATA.products;
+  fillDropdown('all-retailer', prods.map(p => p.retailer));
+  function getFiltered() {
+    const s  = document.getElementById('all-search').value.toLowerCase();
+    const r  = document.getElementById('all-retailer').value;
+    const c  = document.getElementById('all-country').value;
+    const st = document.getElementById('all-stock').value;
+    return prods.filter(p =>
+      (!s  || p.name.toLowerCase().includes(s)) &&
+      (!r  || p.retailer === r) &&
+      (!c  || (p.country||'ZA') === c) &&
+      (!st || p.stock === st)
+    );
+  }
+  const refresh = setupTable('all-table', getFiltered, p => {
+    const c = p.country || 'ZA';
+    const cBadge = c === 'ZA' ? `<span class="badge retailer">ZA</span>`
+                 : c === 'NL' ? `<span class="badge nl">NL</span>`
+                 : `<span class="badge de">DE</span>`;
+    const zarVal = p.price_zar || p.price;
+    const eurVal = p.price_eur;
+    return `<tr>
+      <td>${p.name}</td>
+      <td><span class="badge retailer">${p.retailer}</span></td>
+      <td>${cBadge}</td>
+      <td><span class="badge ${p.stock==='in_stock'?'in-stock':'oos'}">${p.stock==='in_stock'?'In Stock':'Out of Stock'}</span></td>
+      <td class="price">${zarVal ? fmtZAR(zarVal) : '—'}</td>
+      <td class="price-eur">${eurVal ? fmtEUR(eurVal) : '—'}</td>
+    </tr>`;
+  }, 'name', 'asc');
+  const update = () => { document.getElementById('all-count').textContent = refresh() + ' results'; };
+  ['all-search','all-retailer','all-country','all-stock'].forEach(id =>
+    document.getElementById(id).addEventListener(id.includes('search')?'input':'change', update));
+  update();
+}
+
+/* ── TAB: OOS ── */
+function renderOOSTab() {
+  const prods = DATA.products.filter(p => p.stock === 'out_of_stock');
+  fillDropdown('oos-retailer', prods.map(p => p.retailer));
+  function getFiltered() {
+    const s = document.getElementById('oos-search').value.toLowerCase();
+    const r = document.getElementById('oos-retailer').value;
+    return prods.filter(p => (!s||p.name.toLowerCase().includes(s)) && (!r||p.retailer===r));
+  }
+  const refresh = setupTable('oos-table', getFiltered, p => `<tr>
+    <td>${p.name}</td>
+    <td><span class="badge retailer">${p.retailer}</span></td>
+    <td class="price">${fmtZAR(p.price||p.price_zar)}</td>
+  </tr>`, 'price', 'desc');
+  const update = () => { document.getElementById('oos-count').textContent = refresh() + ' results'; };
+  ['oos-search','oos-retailer'].forEach(id =>
+    document.getElementById(id).addEventListener(id.includes('search')?'input':'change', update));
+  update();
+}
+
+/* ── TAB: DEMAND ── */
+function renderDemandTab() {
+  const items = DATA.demand_ranking || [];
+  document.getElementById('demand-count').textContent = `(${items.length} bottles)`;
+  document.querySelector('#demand-table tbody').innerHTML = items.map((p,i) => `<tr>
+    <td style="color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:12px">${i+1}</td>
+    <td>${p.name}</td>
+    <td><span class="badge retailer">${p.retailer}</span></td>
+    <td><strong style="font-family:'JetBrains Mono',monospace;color:var(--amber)">${p.times_oos}</strong></td>
+    <td class="price">${fmtZAR(p.price)}</td>
+  </tr>`).join('');
+}
+
+/* ── TAB: CROSS ── */
+function renderCrossTab() {
+  const items = DATA.cross_retailer_oos || [];
+  document.getElementById('cross-count').textContent = `(${items.length} bottles)`;
+  const list = document.getElementById('cross-list');
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-state"><span class="emoji">📭</span>No bottles found out of stock at multiple retailers yet.</div>';
+    return;
+  }
+  list.innerHTML = items.map(p => `<div class="highlight-card">
+    <div>
+      <div class="name">${p.name}</div>
+      <div class="price" style="font-size:12px;margin-top:3px">${fmtZAR(p.price)}</div>
+    </div>
+    <div class="retailers">${p.retailers.split(',').map(r=>`<span class="badge oos">${r.trim()}</span>`).join('')}</div>
+  </div>`).join('');
+}
+
+/* ── TAB: OVERVIEW ── */
+function renderOverviewTab() {
+  const s = DATA.retailer_summary || [];
+  const chart = document.getElementById('retailer-chart');
+  if (!s.length) { chart.innerHTML = '<div class="empty-state">No data yet.</div>'; return; }
+  const max = Math.max(...s.map(x => x.total));
+  chart.innerHTML = s.map(x => {
+    const iW = ((x.total-x.oos)/max*100).toFixed(1);
+    const oW = (x.oos/max*100).toFixed(1);
+    return `<div class="bar-row">
+      <div class="bar-label" title="${x.retailer}">${x.retailer}</div>
+      <div class="bar-track">
+        <div class="bar-fill in-stock" style="width:${iW}%;position:absolute;left:0"></div>
+        <div class="bar-fill oos" style="width:${oW}%;position:absolute;left:${iW}%"></div>
+      </div>
+      <div class="bar-value">${x.oos} / ${x.total}</div>
+    </div>`;
+  }).join('') + `<div style="display:flex;gap:16px;margin-top:14px;font-size:11px;color:var(--text-dim)">
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);opacity:0.55;border-radius:2px;margin-right:5px"></span>In Stock</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--red);opacity:0.75;border-radius:2px;margin-right:5px"></span>Out of Stock</span>
+  </div>`;
+}
+
+/* ── FUZZY NAME MATCHING ── */
+function normName(n) {
+  return n.toLowerCase()
+    .replace(/[''`´]/g,"'")
+    .replace(/[^a-z0-9\s]/g,' ')
+    .replace(/\b(year|years|yr|yo|y\.?o\.?)\b/g,'yo')
+    .replace(/\b(single malt|scotch|whisky|whiskey|highland|speyside|islay|lowland|campbeltown|single cask|cask strength)\b/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+function tokenSim(a, b) {
+  const ta = new Set(normName(a).split(' ').filter(Boolean));
+  const tb = new Set(normName(b).split(' ').filter(Boolean));
+  if (!ta.size || !tb.size) return 0;
+  let common = 0;
+  ta.forEach(t => { if (tb.has(t)) common++; });
+  return common / Math.max(ta.size, tb.size);
+}
+
+/* ── BUILD ARB DATA ── */
+function buildArbData() {
+  if (!DATA) return;
+  const rate = parseFloat(document.getElementById('arb-fx-rate').value) || FX_RATE;
+  if (!rate || rate <= 0) return;
+
+  const saProds = DATA.products.filter(p => (p.country||'ZA') === 'ZA');
+  const nldeProds = DATA.products.filter(p => p.country && p.country !== 'ZA' && p.price_eur);
+
+  // Build SA map: normalisedKey → [{price, retailer, name}]
+  const saMap = {};
+  saProds.forEach(p => {
+    const price = parseFloat(p.price_zar || p.price);
+    if (!price) return;
+    const key = normName(p.name);
+    if (!saMap[key]) saMap[key] = [];
+    saMap[key].push({ price, retailer: p.retailer, name: p.name });
+  });
+  const saKeys = Object.keys(saMap);
+
+  ARB_DATA = [];
+  nldeProds.forEach(nlp => {
+    const pEur = parseFloat(nlp.price_eur);
+    if (!pEur || pEur <= 0) return;
+
+    // Find best-matching SA product
+    let bestKey = null, bestScore = 0;
+    saKeys.forEach(k => {
+      const s = tokenSim(nlp.name, k);
+      if (s > bestScore && s >= 0.70) { bestScore = s; bestKey = k; }
+    });
+    if (!bestKey) return;
+
+    const saEntries = saMap[bestKey];
+    const bestSaPrice = Math.min(...saEntries.map(e => e.price));
+    const bestSaRetailer = saEntries.find(e => e.price === bestSaPrice)?.retailer || '';
+    const saName = saEntries[0].name;
+
+    const eurZar = pEur * rate;
+    const diff = bestSaPrice - eurZar;
+    const diffPct = (diff / bestSaPrice) * 100;
+
+    ARB_DATA.push({
+      name: nlp.name,
+      sa_name: saName,
+      nl_retailer: nlp.retailer,
+      nl_stock: nlp.stock || 'in_stock',
+      nl_country: nlp.country || 'NL',
+      price_eur: pEur,
+      price_eur_zar: eurZar,
+      best_sa_price: bestSaPrice,
+      best_sa_retailer: bestSaRetailer,
+      diff,
+      diff_pct: diffPct,
+      match_score: bestScore,
+    });
+  });
+
+  ARB_DATA.sort((a,b) => b.diff - a.diff);
+}
+
+/* ── TAB: ARBITRAGE ── */
+function renderArbTab() {
+  if (!DATA) return;
+  const threshold = parseFloat(document.getElementById('arb-threshold').value) || 0;
+
+  // Populate retailer dropdown
+  fillDropdown('arb-region', ARB_DATA.map(r => r.nl_retailer));
+
+  // Summary
+  const buys = ARB_DATA.filter(r => r.diff >= threshold);
+  const maxSaving = buys.length ? Math.max(...buys.map(r => r.diff)) : 0;
+  const avgSaving = buys.length ? buys.reduce((s,r) => s+r.diff, 0) / buys.length : 0;
+  const inStockBuys = buys.filter(r => r.nl_stock === 'in_stock').length;
+
+  document.getElementById('arb-summary').innerHTML = `
+    <div class="arb-card">
+      <span class="alabel">Matched Pairs</span>
+      <span class="avalue">${ARB_DATA.length}</span>
+      <span class="asub">NL/DE ↔ SA bottle matches</span>
+    </div>
+    <div class="arb-card">
+      <span class="alabel">BUY Signals</span>
+      <span class="avalue" style="color:var(--teal)">${buys.length}</span>
+      <span class="asub">${inStockBuys} in stock in NL/DE now</span>
+    </div>
+    <div class="arb-card">
+      <span class="alabel">Best Saving</span>
+      <span class="avalue" style="color:var(--teal)">${fmtZAR(maxSaving)}</span>
+      <span class="asub">single bottle maximum</span>
+    </div>
+    <div class="arb-card">
+      <span class="alabel">Avg Saving (BUYs)</span>
+      <span class="avalue" style="color:var(--amber)">${fmtZAR(avgSaving)}</span>
+      <span class="asub">per matched bottle</span>
+    </div>`;
+
+  const maxAbsDiff = Math.max(...ARB_DATA.map(r => Math.abs(r.diff)), 1);
+
+  function getFiltered() {
+    const s   = document.getElementById('arb-search').value.toLowerCase();
+    const reg = document.getElementById('arb-region').value;
+    const flg = document.getElementById('arb-flag').value;
+    const stk = document.getElementById('arb-stock-filter').value;
+    return ARB_DATA.filter(r =>
+      (!s   || r.name.toLowerCase().includes(s) || r.sa_name.toLowerCase().includes(s)) &&
+      (!reg || r.nl_retailer === reg) &&
+      (!stk || r.nl_stock === stk) &&
+      (flg === '' ||
+       (flg === 'buy'  && r.diff >= threshold) ||
+       (flg === 'skip' && r.diff <  threshold))
+    );
+  }
+
+  const refresh = setupTable('arb-table', getFiltered, r => {
+    const isBuy = r.diff >= threshold;
+    const diffCls = r.diff >= 0 ? 'price-pos' : 'price-neg';
+    const barPct = (Math.abs(r.diff) / maxAbsDiff * 100).toFixed(1);
+    const barCls = r.diff >= 0 ? 'pos' : 'neg';
+    const cBadge = r.nl_country === 'NL'
+      ? `<span class="badge nl">NL</span>`
+      : `<span class="badge de">DE</span>`;
+    return `<tr>
+      <td>
+        <div style="font-weight:500">${r.name}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:1px">SA: ${r.sa_name}</div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+          ${cBadge}
+          <span class="badge retailer">${r.nl_retailer}</span>
+        </div>
+      </td>
+      <td><span class="badge ${r.nl_stock==='in_stock'?'in-stock':'oos'}">${r.nl_stock==='in_stock'?'In Stock':'OOS'}</span></td>
+      <td class="price-eur">${fmtEUR(r.price_eur)}</td>
+      <td class="price">${fmtZAR(r.price_eur_zar)}</td>
+      <td>
+        <div class="price">${fmtZAR(r.best_sa_price)}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:1px">${r.best_sa_retailer}</div>
+      </td>
+      <td>
+        <div class="${diffCls}">${r.diff>=0?'+':''}${fmtZAR(r.diff)}</div>
+        <div class="diff-bar-track"><div class="diff-bar-fill ${barCls}" style="width:${barPct}%"></div></div>
+      </td>
+      <td class="${diffCls}">${fmtPct(r.diff_pct)}</td>
+      <td>
+        <span class="badge ${isBuy?'buy':'skip'}">${isBuy?'✅ BUY':'–'}</span>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px">${(r.match_score*100).toFixed(0)}% match</div>
+      </td>
+    </tr>`;
+  }, 'diff', 'desc');
+
+  const update = () => { document.getElementById('arb-count').textContent = refresh() + ' results'; };
+  ['arb-search','arb-region','arb-flag','arb-stock-filter'].forEach(id =>
+    document.getElementById(id).addEventListener(id.includes('search')?'input':'change', update));
+  update();
+}
+
+function refreshArb() {
+  const v = parseFloat(document.getElementById('arb-fx-rate').value);
+  if (v > 0) FX_RATE = v;
+  buildArbData();
+  renderArbTab();
+  renderChangesTab();
+}
+
+/* ── CHANGES TAB ── */
+function renderChangesTab() {
+  const changes = DATA.changes || [];
+  const restocked = changes.filter(c => c.type === 'restocked');
+  const soldOut   = changes.filter(c => c.type === 'sold_out');
+
+  // Update tab badge
+  const badge = document.getElementById('changes-badge');
+  if (badge) badge.textContent = changes.length;
+
+  // Summary counts
+  document.getElementById('changes-restocked-count').textContent = restocked.length;
+  document.getElementById('changes-soldout-count').textContent   = soldOut.length;
+  document.getElementById('changes-run-label').textContent =
+    changes.length > 0
+      ? `vs previous run · ${changes.length} change${changes.length !== 1 ? 's' : ''}`
+      : 'No changes detected since previous run';
+
+  const tbody = document.querySelector('#changes-table tbody');
+  if (!changes.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-dim)">
+      No stock changes detected since the previous run.<br>
+      <span style="font-size:11px">Run the scraper at least twice to see changes.</span>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = changes.map(c => {
+    const isRestock = c.type === 'restocked';
+    const badge = isRestock
+      ? '<span class="badge in-stock">✓ Restocked</span>'
+      : '<span class="badge oos">✗ Sold Out</span>';
+    const flag = c.country === 'ZA' ? '🇿🇦' : c.country === 'NL' ? '🇳🇱' : '🇩🇪';
+    const priceStr = c.price
+      ? (c.currency === 'EUR' ? `<span class="price-eur">€ ${Number(c.price).toFixed(2)}</span>`
+                               : `<span class="price">R ${Number(c.price).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`)
+      : '<span style="color:var(--text-dim)">—</span>';
+    return `<tr>
+      <td>${badge}</td>
+      <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis">${c.name}</td>
+      <td>${flag} <span class="badge retailer">${c.retailer}</span></td>
+      <td>${priceStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── TAB SWITCHING ── */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+/* ── BOOT ── */
+init();
+</script>
+</body>
+</html>
