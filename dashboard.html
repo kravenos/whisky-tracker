@@ -295,6 +295,14 @@
       <option value="in_stock">In Stock</option>
       <option value="out_of_stock">Out of Stock</option>
     </select>
+    <div style="display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 12px;font-size:12px;color:var(--text-dim)">
+      <span>R</span>
+      <input type="number" id="all-price-min" placeholder="Min" min="0" step="100"
+        style="width:70px;background:transparent;border:none;outline:none;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600">
+      <span>–</span>
+      <input type="number" id="all-price-max" placeholder="Max" min="0" step="100"
+        style="width:70px;background:transparent;border:none;outline:none;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600">
+    </div>
     <span class="result-count" id="all-count"></span>
   </div>
   <div class="table-wrap"><div class="scrollable-table">
@@ -314,6 +322,12 @@
   <div class="toolbar">
     <input class="search-input" id="oos-search" placeholder="Search bottles…" type="text">
     <select class="filter-select" id="oos-retailer"><option value="">All retailers</option></select>
+    <select class="filter-select" id="oos-region">
+      <option value="ZA">🇿🇦 SA only</option>
+      <option value="">All regions</option>
+      <option value="NL">🇳🇱 NL only</option>
+      <option value="DE">🇩🇪 DE only</option>
+    </select>
     <span class="result-count" id="oos-count"></span>
   </div>
   <div class="table-wrap"><div class="scrollable-table">
@@ -594,17 +608,28 @@ function fillDropdown(id, items) {
 function renderAllTab() {
   const prods = DATA.products;
   fillDropdown('all-retailer', prods.map(p => p.retailer));
+  function isSample(p) {
+    const n = p.name.toLowerCase();
+    return /\b(sample|\dcl\b|miniature|mini\b|tasting kit)/.test(n) ||
+           p.retailer === 'Whiskysite' && /\b(3cl|6cl|10cl|sample)/.test(n);
+  }
   function getFiltered() {
-    const s  = document.getElementById('all-search').value.toLowerCase();
-    const r  = document.getElementById('all-retailer').value;
-    const c  = document.getElementById('all-country').value;
-    const st = document.getElementById('all-stock').value;
-    return prods.filter(p =>
-      (!s  || p.name.toLowerCase().includes(s)) &&
-      (!r  || p.retailer === r) &&
-      (!c  || (p.country||'ZA') === c) &&
-      (!st || p.stock === st)
-    );
+    const s    = document.getElementById('all-search').value.toLowerCase();
+    const r    = document.getElementById('all-retailer').value;
+    const c    = document.getElementById('all-country').value;
+    const st   = document.getElementById('all-stock').value;
+    const pMin = parseFloat(document.getElementById('all-price-min').value) || 0;
+    const pMax = parseFloat(document.getElementById('all-price-max').value) || Infinity;
+    return prods.filter(p => {
+      if (isSample(p)) return false;
+      const price = p.price_zar || p.price || 0;
+      const inRange = (p.country && p.country !== 'ZA') || (price >= pMin && price <= pMax);
+      return (!s  || p.name.toLowerCase().includes(s)) &&
+             (!r  || p.retailer === r) &&
+             (!c  || (p.country||'ZA') === c) &&
+             (!st || p.stock === st) &&
+             inRange;
+    });
   }
   const refresh = setupTable('all-table', getFiltered, p => {
     const c = p.country || 'ZA';
@@ -625,6 +650,8 @@ function renderAllTab() {
   const update = () => { document.getElementById('all-count').textContent = refresh() + ' results'; };
   ['all-search','all-retailer','all-country','all-stock'].forEach(id =>
     document.getElementById(id).addEventListener(id.includes('search')?'input':'change', update));
+  ['all-price-min','all-price-max'].forEach(id =>
+    document.getElementById(id).addEventListener('input', update));
   update();
 }
 
@@ -632,10 +659,21 @@ function renderAllTab() {
 function renderOOSTab() {
   const prods = DATA.products.filter(p => p.stock === 'out_of_stock');
   fillDropdown('oos-retailer', prods.map(p => p.retailer));
+  function isSample(p) {
+    const n = p.name.toLowerCase();
+    return /\b(sample|\dcl\b|miniature|mini\b|tasting kit)/.test(n) ||
+           p.retailer === 'Whiskysite' && /\b(3cl|6cl|10cl|sample)/.test(n);
+  }
   function getFiltered() {
-    const s = document.getElementById('oos-search').value.toLowerCase();
-    const r = document.getElementById('oos-retailer').value;
-    return prods.filter(p => (!s||p.name.toLowerCase().includes(s)) && (!r||p.retailer===r));
+    const s  = document.getElementById('oos-search').value.toLowerCase();
+    const r  = document.getElementById('oos-retailer').value;
+    const rg = document.getElementById('oos-region').value;
+    return prods.filter(p =>
+      !isSample(p) &&
+      (!s  || p.name.toLowerCase().includes(s)) &&
+      (!r  || p.retailer === r) &&
+      (!rg || (p.country||'ZA') === rg)
+    );
   }
   const refresh = setupTable('oos-table', getFiltered, p => `<tr>
     <td>${p.name}</td>
@@ -643,14 +681,18 @@ function renderOOSTab() {
     <td class="price">${fmtZAR(p.price||p.price_zar)}</td>
   </tr>`, 'price', 'desc');
   const update = () => { document.getElementById('oos-count').textContent = refresh() + ' results'; };
-  ['oos-search','oos-retailer'].forEach(id =>
+  ['oos-search','oos-retailer','oos-region'].forEach(id =>
     document.getElementById(id).addEventListener(id.includes('search')?'input':'change', update));
   update();
 }
 
 /* ── TAB: DEMAND ── */
 function renderDemandTab() {
-  const items = DATA.demand_ranking || [];
+  function isSample(p) {
+    const n = (p.name||'').toLowerCase();
+    return /\b(sample|\dcl\b|miniature|mini\b|tasting kit)/.test(n);
+  }
+  const items = (DATA.demand_ranking || []).filter(p => !isSample(p));
   document.getElementById('demand-count').textContent = `(${items.length} bottles)`;
   document.querySelector('#demand-table tbody').innerHTML = items.map((p,i) => `<tr>
     <td style="color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:12px">${i+1}</td>
