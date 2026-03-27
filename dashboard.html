@@ -568,6 +568,8 @@ function render() {
 /* ── TABLE ENGINE ── */
 const NUM_COLS = new Set(['price','price_zar','price_eur','price_eur_zar','best_sa_price','diff','diff_pct','times_oos']);
 
+const MAX_ROWS = 500;  // cap DOM rows for performance; use search/filter to narrow down
+
 function setupTable(tableId, getFiltered, renderRow, defCol, defDir) {
   let sortCol = defCol, sortDir = defDir || 'asc';
   function refresh() {
@@ -578,12 +580,22 @@ function setupTable(tableId, getFiltered, renderRow, defCol, defDir) {
       else { va = (va||'').toString().toLowerCase(); vb = (vb||'').toString().toLowerCase(); }
       return va < vb ? (sortDir==='asc'?-1:1) : va > vb ? (sortDir==='asc'?1:-1) : 0;
     });
-    document.querySelector(`#${tableId} tbody`).innerHTML = rows.map(renderRow).join('');
+    const total = rows.length;
+    const visible = rows.slice(0, MAX_ROWS);
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    let html = visible.map(renderRow).join('');
+    if (total > MAX_ROWS) {
+      const cols = document.querySelectorAll(`#${tableId} thead th`).length;
+      html += `<tr><td colspan="${cols}" style="text-align:center;padding:12px;color:var(--text-dim);font-size:11px;font-family:'JetBrains Mono',monospace">
+        Showing ${MAX_ROWS.toLocaleString()} of ${total.toLocaleString()} results — use search or filters to narrow down
+      </td></tr>`;
+    }
+    tbody.innerHTML = html;
     document.querySelectorAll(`#${tableId} thead th`).forEach(th => {
       th.classList.remove('sorted-asc','sorted-desc');
       if (th.dataset.col === sortCol) th.classList.add(sortDir==='asc'?'sorted-asc':'sorted-desc');
     });
-    return rows.length;
+    return total;
   }
   document.querySelectorAll(`#${tableId} thead th`).forEach(th => {
     th.addEventListener('click', () => {
@@ -622,7 +634,7 @@ function renderAllTab() {
     const pMax = parseFloat(document.getElementById('all-price-max').value) || Infinity;
     return prods.filter(p => {
       if (isSample(p)) return false;
-      const price = p.price_zar || p.price || 0;
+      const price = p.price || 0;
       const inRange = (p.country && p.country !== 'ZA') || (price >= pMin && price <= pMax);
       return (!s  || p.name.toLowerCase().includes(s)) &&
              (!r  || p.retailer === r) &&
@@ -636,7 +648,7 @@ function renderAllTab() {
     const cBadge = c === 'ZA' ? `<span class="badge retailer">ZA</span>`
                  : c === 'NL' ? `<span class="badge nl">NL</span>`
                  : `<span class="badge de">DE</span>`;
-    const zarVal = p.price_zar || p.price;
+    const zarVal = p.price;
     const eurVal = p.price_eur;
     return `<tr>
       <td>${p.name}</td>
@@ -678,7 +690,7 @@ function renderOOSTab() {
   const refresh = setupTable('oos-table', getFiltered, p => `<tr>
     <td>${p.name}</td>
     <td><span class="badge retailer">${p.retailer}</span></td>
-    <td class="price">${fmtZAR(p.price||p.price_zar)}</td>
+    <td class="price">${fmtZAR(p.price)}</td>
   </tr>`, 'price', 'desc');
   const update = () => { document.getElementById('oos-count').textContent = refresh() + ' results'; };
   ['oos-search','oos-retailer','oos-region'].forEach(id =>
@@ -774,7 +786,7 @@ function buildArbData() {
   // Build SA map: normalisedKey → [{price, retailer, name}]
   const saMap = {};
   saProds.forEach(p => {
-    const price = parseFloat(p.price_zar || p.price);
+    const price = parseFloat(p.price);
     if (!price) return;
     const key = normName(p.name);
     if (!saMap[key]) saMap[key] = [];
